@@ -1,0 +1,1215 @@
+---
+params:
+    homeDir: /home/shumphrey/GenomicInformationAnalysis/
+    scratchDir: /scratch/wsspaces/shumphrey-genomicInformation-0/
+    dataDir: /data/rnabiology/shumphrey/Project/
+output:
+  html_document: 
+    df_print: paged
+    toc: true
+    toc_depth: 3
+    code_folding: hide
+    theme: spacelab
+title: "Plot All the necessary figures for the paper"
+author: "Sam Humphrey"
+---
+
+This document will be similar to the *fullAnalysis* documents, however, it will include the multi-species comparisons & include all plotting functions.
+
+## 0. Setup environment
+All functions and figure plotting has been moved to additional Rscript *GenomicInformationFiguresScript.R*
+
+```{r setup, eval = TRUE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = TRUE, error = TRUE, message = TRUE, eval = TRUE, include = TRUE)
+knitr::opts_chunk$set(fig.align = "left", fig.width = 6.5, fig.height = 8.5)
+
+#library(plyr)
+library(data.table)
+library(tidyverse)
+library(ggpubr)
+#library(gplots)
+#library(grid)
+#library(gridExtra)
+#library(gtable)
+library(RColorBrewer)
+library(Logolas)
+library(ggseqlogo)
+#library(cowplot)
+library(matrixStats)
+
+dinucleotides <- c("AA", "AC", "AG", "AT", "CA", "CC", "CG", "CT", "GA", "GC", "GG", "GT", "TA", "TC", "TG", "TT")
+
+aminoAcids <- c("A", "C", "D", "E", "F", "G", "H", "I", "K", "L", "M", "N", "P", "Q", "R", "S", "T", "V", "W", "Y")
+
+trinucleotides <- c("AAA", "AAC", "AAG", "AAT", "ACA", "ACC", "ACG", "ACT", "AGA", "AGC", "AGG", "AGT", "ATA", "ATC", "ATG", "ATT",
+                    "CAA", "CAC", "CAG", "CAT", "CCA", "CCC", "CCG", "CCT", "CGA", "CGC", "CGG", "CGT", "CTA", "CTC", "CTG", "CTT",
+                    "GAA", "GAC", "GAG", "GAT", "GCA", "GCC", "GCG", "GCT", "GGA", "GGC", "GGG", "GGT", "GTA", "GTC", "GTG", "GTT",
+                    "TAA", "TAC", "TAG", "TAT", "TCA", "TCC", "TCG", "TCT", "TGA", "TGC", "TGG", "TGT", "TTA", "TTC", "TTG", "TTT")
+
+
+speciesColours <- rev(brewer.pal(5, "Dark2"))
+speciesVector <-rev(c("HomoSapiens", "MusMusculus", "DanioRerio", "Drosophila", "Pombe"))
+
+CRUKcolours <- c(rgb(red = 200, green = 201, blue = 199, alpha = 255, names = "CRUK_Grey", maxColorValue = 255), 
+                  rgb(red = 0, green = 182, blue = 237, alpha = 255, names = "CRUK_LightBlue", maxColorValue = 255),
+                  rgb(red = 236, green = 0, blue = 140, alpha = 255, names = "CRUK_Magenta", maxColorValue = 255), 
+                  rgb(red = 46, green = 0, blue = 139, alpha = 255, names = "CRUK_Blue", maxColorValue = 255), 
+                  rgb(red = 0, green = 0, blue = 0, alpha = 255, names = "CRUK_Black", maxColorValue = 255))
+
+mytheme <- theme(
+      			line = element_line(colour = "black", size = 1, lineend = "square"), 
+            axis.line = element_line(colour = "black", size = 1, lineend = "square"), 
+      			axis.ticks = element_line(colour = "black", size = 1, lineend = "square"), 
+      			text = element_text(family = "Helvetica", colour = "black", size = 12, hjust = 0.5, vjust = 0),
+      			axis.text = element_text(family = "Helvetica", colour = "black", size = 12, hjust = 0.5, vjust = 0.5),
+      			#axis.text.y = element_text(family = "Helvetica", colour = "black", size = 12, hjust = 0.5, vjust = 0.5),
+      			panel.grid.major = element_blank(), 
+      			panel.grid.minor = element_blank(), 
+      			panel.background = element_blank(), 
+      # 			legend.key=element_rect(fill='white'),
+      # 			legend.position = c(.95, .99),
+      #       legend.justification = c("right", "top"),
+      #       legend.box.just = "right",
+      #       legend.margin = margin(6, 6, 6, 6)
+            legend.position = "none"
+            )
+
+figuresDir <- "/home/shumphrey/GenomicInformationAnalysis/PaperFigures/"
+
+```
+
+# Section 1: Model Creation, Optimisation and validation
+
+## Figure 1: k-mer size choice and the sample size effect.
+Firstly, it is interesting to investigate the overall distribution spectras for the various k-mer lengths and species.
+
+The DNA distributions for **k** = 2 - 15 were created and the entropy of each distribution was calculated using the *redundancyScript.R*, which outputs a text file to the home *Data/* directory.
+
+The individual nucleotide script is tricky so I'm going to just take the dinucleotide distribution for the CDS and sum the four values that start with each nucleotide. It is not perfectly accurate, but it's error is a few hundred k-mers in 
+
+```{r set up Figure 1, fig.width=4.5, fig.height = 3}
+
+redundancy.list.DNA <- rbind(lapply(speciesVector, function(x) read.table(paste0(params$homeDir, "Data/Redundancy/", x, "_DNA_RedundancyInfoTable.txt"), header = TRUE)))
+redundancy.DNA <- as_tibble(do.call("rbind", redundancy.list.DNA))
+
+redundancy.list.CDS <- rbind(lapply(speciesVector, function(x) read.table(paste0(params$homeDir, "Data/Redundancy/", x, "_CDS_RedundancyInfoTable.txt"), header = TRUE)))
+redundancy.CDS <- as_tibble(do.call("rbind", redundancy.list.CDS))
+
+redundancy.list.AA <- rbind(lapply(speciesVector, function(x) read.table(paste0(params$homeDir, "Data/Redundancy/", x, "_AA_RedundancyInfoTable_AA.txt"), header = TRUE)))
+redundancy.AA <- as_tibble(do.call("rbind", redundancy.list.AA))
+
+```
+
+I've made a count table for dinucleotides no problem, however individual nucleotides doesn't work with the comparison over genomic coords - hence start at k = 2.
+
+```{r Make individual Figure 1 plots, fig.width=3, fig.height = 2}
+
+plotRedundancy <- function(redundancy.tbl){
+  gg.redundancy <-   ggplot(redundancy.tbl, aes(x = k, y = redundancy, group = species, colour = species)) +
+                    geom_vline(xintercept = c(3,6,9,12), colour = "grey", alpha = 0.5, linetype = "dashed") +
+                    geom_line(size = 1.5, alpha = 0.7) + geom_point(size = 2, pch = 16) +
+                    mytheme + 
+                    labs(y = "Redundancy", x = "") +
+                    scale_color_manual(values = speciesColours) + 
+                    scale_x_continuous(breaks = c(3, 6, 9, 12, 15), limits = c(2, 15)) +
+                    scale_y_continuous(expand = c(0,0.01), limits = c(0, 0.25), breaks = c(0.1, 0.2))
+  
+   return(gg.redundancy)
+}
+  
+plotUniqueKmers <- function(redundancy.tbl){ 
+  kmerCounts <- redundancy.tbl %>% 
+                      transmute(
+                        species = species,
+                        k = k,
+                        kmerPercent = individualKmers/(4^k) * 100,
+                        genomeSize = totalKmers
+                      ) %>% 
+                      filter(genomeSize > 4^k)
+  
+  gg.kmerCount <- ggplot(kmerCounts , aes(x = k, y = kmerPercent, group = species, colour = species)) +
+                        geom_vline(xintercept = c(6,9,12), colour = "grey", alpha = 0.5, linetype = "dashed") +
+                        geom_line(size = 1.5, alpha = 0.7) + geom_point(size = 2) +
+                        mytheme + 
+                        labs(y = "Unique k-mers (%)", x = "") +
+                        scale_color_manual(values = speciesColours) + # theme(legend.position = "right") +
+                        scale_x_continuous(breaks = c(3, 6, 9, 12, 15), limits = c(2, 15)) +
+                        scale_y_continuous(expand = c(0,0.01), limits = c(50,105), breaks = c(60, 80, 100))
+
+  return(gg.kmerCount)
+}
+
+plotRedundancy.AA <- function(redundancy.tbl){
+  gg.redundancy <-   ggplot(redundancy.tbl, aes(x = k, y = redundancy, group = species, colour = species)) +
+                    geom_vline(xintercept = c(3,6,9,12), colour = "grey", alpha = 0.5, linetype = "dashed") +
+                    geom_line(size = 1.5, alpha = 0.7) + geom_point(size = 2, pch = 16) +
+                    mytheme + 
+                    labs(y = "Redundancy", x = "") +
+                    scale_color_manual(values = speciesColours) + 
+                    scale_x_continuous(breaks = c(3, 6, 9, 12, 15), labels = c(1,2,3,4,5), limits = c(2, 15)) +
+                    scale_y_continuous(expand = c(0,0.01), limits = c(0, 0.25), breaks = c(0.1, 0.2))
+  return(gg.redundancy) 
+}
+  
+plotUniqueKmers.AA <- function(redundancy.tbl){
+  kmerCounts <- redundancy.tbl %>% 
+                      transmute(
+                        species = species,
+                        k = k,
+                        kmerPercent = individualKmers/(20^(k/3)) * 100,
+                        genomeSize = totalKmers
+                      ) %>%  
+                      filter(genomeSize > (20^(k/3)))
+  
+  gg.kmerCount <- ggplot(kmerCounts , aes(x = k, y = kmerPercent, group = species, colour = species)) +
+                        geom_vline(xintercept = c(3,6,9,12), colour = "grey", alpha = 0.5, linetype = "dashed") +
+                        geom_line(size = 1.5, alpha = 0.7) + geom_point(size = 2) +
+                        mytheme +     
+                        labs(y = "Unique k-mers (%)", x = "") +
+                        scale_color_manual(values = speciesColours) + 
+                        scale_x_continuous(breaks = c(3, 6, 9, 12, 15), labels = c(1,2,3,4,5), limits = c(2, 15)) +
+                        scale_y_continuous(expand = c(0,0.01), limits = c(50,105), breaks = c(60, 80, 100)) #+ theme(legend.position = "right")
+  
+   return(gg.kmerCount)
+}
+   
+plotRedundancy.DNA <- plotRedundancy(redundancy.DNA)
+plotRedundancy.CDS <- plotRedundancy(redundancy.CDS)
+plotRedundancy.AA  <- plotRedundancy.AA(redundancy.AA)
+
+plotUniqueKmers.DNA <- plotUniqueKmers(redundancy.DNA)
+plotUniqueKmers.CDS<- plotUniqueKmers(redundancy.CDS)
+plotUniqueKmers.AA <- plotUniqueKmers.AA(redundancy.AA)
+```
+
+Arrange the files and output
+
+```{r Combine and output Figure 1 plots, fig.height=6, fig.width = 6}
+
+Figure1 <- ggarrange(plotRedundancy.DNA, plotUniqueKmers.DNA, plotRedundancy.CDS, plotUniqueKmers.CDS, plotRedundancy.AA, plotUniqueKmers.AA, ncol = 2, nrow = 3, labels = c("A", "B", "C", "D", "E", "F")) 
+
+
+ggsave(paste0(figuresDir, "Figure1-RedundancyAndKmerCounts.pdf"), plot = Figure1, height=6, width = 6, useDingbats=FALSE)
+Figure1
+
+```
+
+
+
+## Figure 2: Exon intron boundaries show known motifs
+
+Look at the general comparison of exon-intron splice boundaries for all species.
+*fullDepth* = 150 because thats the length of the files, but the EI depth allows for a smaller range to be plotted.
+It only make sence to evaluate the DNA distribution here.
+
+```{r Exon intron boundaries for all species, fig.width=6, fig.height=4}
+k = 12
+fullDepth = 150
+EIdepth = 50
+speciesColours <- rev(brewer.pal(4, "Dark2"))
+speciesVector <-rev(c("HomoSapiens", "MusMusculus", "DanioRerio", "Drosophila"))
+
+
+boundaries.list.DNA <- rbind(lapply(speciesVector, function(x) fread(paste("/data/rnabiology/shumphrey/Project/4-BoundarySurprisal/BoundEI_DistDNA/exonIntronBoundarySurprisal_", x, "_DistDNA_k", k, "_D", fullDepth, ".txt", sep = ""), header = FALSE, fill = TRUE)))
+
+names(boundaries.list.DNA) <- speciesVector
+boundaries.list.DNA <- Map(cbind, boundaries.list.DNA, species = names(boundaries.list.DNA))
+
+boundaries.DNA<- as_tibble(do.call("rbind", boundaries.list.DNA))
+
+colnames(boundaries.DNA) <- c("chr", "strand", "geneID", "geneName", "geneBiotype", "transID", "transName", "transStart", "transEnd", "transBiotype", "proteinID", "exonID", "exonStart", "exonEnd", "exon5p_boundSeq", "exon3p_boundSeq", paste0("surprisal5p_", seq(-fullDepth, fullDepth-1)), paste0("dinuc5p_", seq(-fullDepth, fullDepth-1)), paste0("surprisal3p_", seq(-fullDepth, fullDepth-1)), paste0("dinuc3p_", seq(-fullDepth, fullDepth-1)), "species")
+
+PCboundaries.DNA <- boundaries.DNA %>% filter(transBiotype == "protein_coding")
+
+rm(boundaries.list.DNA, boundaries.DNA)
+
+PCbound.5p <- PCboundaries.DNA %>% 
+                    select(species, starts_with("surprisal5p_")) %>% 
+                    filter(complete.cases(.)) %>% 
+                    filter_all(all_vars(. > 0)) 
+
+PCbound.5p.mat <- lapply(PCbound.5p[, -1], as.numeric)
+
+PCbound.5p.mat <- as_tibble(PCbound.5p.mat) %>% 
+                    mutate(species = PCbound.5p$species) 
+
+
+PCbound.5p.means <- lapply(speciesVector, function(x) colMeans(select(filter(PCbound.5p.mat, species == x), starts_with("surprisal5p_"))))
+names(PCbound.5p.means) <- speciesVector
+ 
+PCbound.5p.means <-  as_tibble(PCbound.5p.means) %>% 
+                      mutate(Position = seq(-fullDepth, fullDepth-1))
+                            
+rm(PCbound.5p.mat, PCbound.5p)
+
+
+PCbound.3p <- PCboundaries.DNA %>% 
+                    select(species, starts_with("surprisal3p_")) %>% 
+                    filter(complete.cases(.)) %>% 
+                    filter_all(all_vars(. > 0)) 
+
+PCbound.3p.mat <- lapply(PCbound.3p[, -1], as.numeric)
+
+PCbound.3p.mat <- PCbound.3p.mat %>% 
+                    as_tibble() %>% 
+                    mutate(species = PCbound.3p$species)
+
+PCbound.3p.means <- lapply(speciesVector, function(x) colMeans(select(filter(PCbound.3p.mat, species == x), starts_with("surprisal3p_"))))
+names(PCbound.3p.means) <- speciesVector
+ 
+PCbound.3p.means <- PCbound.3p.means %>% 
+                      as_tibble() %>% 
+                      mutate(Position = seq(-fullDepth, fullDepth-1))
+
+rm(PCbound.3p.mat, PCbound.3p)
+
+PCbound.5p.means.filtered <- PCbound.5p.means %>% 
+                      filter(Position >= -1*EIdepth & Position <= EIdepth - 1)
+
+PCbound.3p.means.filtered  <- PCbound.3p.means %>% 
+                      filter(Position >= -1*EIdepth & Position <= EIdepth - 1)
+
+
+PCbound.5p.means.toPlot <- PCbound.5p.means.filtered %>% 
+                              pivot_longer(-Position, names_to = "species", values_to = "surprisal")
+
+PCbound.3p.means.toPlot <- PCbound.3p.means.filtered %>% 
+                              pivot_longer(-Position, names_to = "species", values_to = "surprisal")
+
+lowLimit <- function(x){floor(min(x))}
+highLimit <- function(x){ceiling(max(x))}
+
+
+lowlim <- min(c(lowLimit(PCbound.5p.means.toPlot$surprisal),lowLimit(PCbound.5p.means.toPlot$surprisal)))
+highlim <- max(c(highLimit(PCbound.5p.means.toPlot$surprisal),highLimit(PCbound.5p.means.toPlot$surprisal))) 
+
+gg.dna.exon5p <- ggplot(PCbound.5p.means.toPlot, aes(x = Position, y = surprisal, group = factor(species, levels = speciesVector), color = factor(species, levels = speciesVector))) +
+                  geom_line(size = 1.2, alpha = 0.7) +
+                  geom_vline(xintercept = -0.5, colour = 'black', alpha = 0.2, size = 1 )  +
+                  mytheme + 
+                  theme(plot.margin=unit(c(0,0,0,0), "cm")) + 
+                  labs( x = "",  y = "Mean DNA surprisal (bits)") +
+                  scale_color_manual(values = speciesColours) +
+                  scale_x_continuous(expand=c(0.01,0), 
+              breaks = c(-EIdepth, -EIdepth/2, -0.5, EIdepth/2, EIdepth-1), 
+              labels = as.character(c( -EIdepth, -EIdepth/2, "5' ss", EIdepth/2, EIdepth) )) + 
+                 scale_y_continuous(expand=c(0.01,0), limits = c( lowlim, highlim )) +
+  theme(plot.margin=unit(c(.2,.2,.2,.2), "cm"))
+
+
+gg.dna.exon3p <- ggplot(PCbound.3p.means.toPlot, aes(x = Position, y = surprisal, group = factor(species, levels = speciesVector), color = factor(species, levels = speciesVector))) +
+        geom_line(size = 1.2, alpha = 0.7) +
+        geom_vline(xintercept = -0.5, colour = 'black', alpha = 0.2, size = 1) + 
+        mytheme + 
+        labs( x = "",  y = "Mean DNA surprisal (bits)") +
+        scale_color_manual(values = speciesColours) +
+        scale_x_continuous(expand=c(0.01,0), 
+  breaks = c(-EIdepth, -EIdepth/2, -0.5, EIdepth/2, EIdepth-1), 
+  labels = c( -EIdepth, -EIdepth/2, "3' ss", EIdepth/2, EIdepth) ) + 
+       scale_y_continuous(expand=c(0.01,0) , position = "right", limits =  c( lowlim, highlim )) +
+  theme(plot.margin=unit(c(.2,.2,.2,.2), "cm") )#, legend.position = "right")
+
+
+#x.grob <- textGrob(paste0("Distance from splice site"), gp=gpar(fontfamily = "Helvetica", fontsize=12))
+
+ExonIntronMultiplot <- ggarrange(gg.dna.exon5p,  gg.dna.exon3p, ncol = 2, nrow = 1, labels = c("A", "B")) 
+
+
+
+ggsave(filename = paste0(figuresDir, "Figure2_ExonIntronBoundaries_PCbounds_DNAdist_D", EIdepth, "_K",k,".pdf"), plot = ExonIntronMultiplot, width=6, height=4)
+ExonIntronMultiplot 
+```
+
+
+
+
+## Figure 3: Multi species exon-exon boundaries show consistency across species
+
+```{r Plot multi species exon boundary, fig.width=6, fig.height=2}
+
+k = 9
+fullDepth = 100
+EEdepth = 50
+
+
+getSurprisalMeanCentred <- function(bound, depth) {
+   
+  print(table(bound$transBiotype))
+  depthColnames <- paste0("surprisal", seq(-depth, depth-1))
+
+  mat <- bound %>%
+    select(depthColnames) 
+  
+  mat <- mat %>% 
+    filter_all(any_vars(. > 0)) %>% 
+    as.matrix()
+
+  mean <- data.frame(Position = seq(-(depth), (depth - 1)), 
+                     MeanSurprisal = unname(colMeans(mat)),
+                     MeanCentredSurprisal = unname(colMeans(mat)) - mean(unname(colMeans(mat))), 
+                     sds = colSds(mat))
+  return(mean)
+}
+
+
+plotFigure3 <- function(boundary, dist, depth, k, lowlim, highlim){
+  
+  fullLength = 100
+  
+  EEbounds.CDS.list <-  lapply(speciesVector, function(x) 
+    fread(paste(params$dataDir, "4-BoundarySurprisal/Bound", boundary, "_Dist", dist, "/exonExonBoundarySurprisal_", x, "_", boundary, "_Dist", dist,"_k", k, "_D", fullLength,".txt", sep = ""), header = FALSE))
+
+  names(EEbounds.CDS.list) <- speciesVector 
+  lapply(EEbounds.CDS.list, dim)
+  
+  EEbounds.CDS.list <- lapply(EEbounds.CDS.list, function(x) x[complete.cases(x),])
+  
+  ifelse(dist == "AA",
+    colnames<- c("chr", "transStart", "transEnd", "strand", "geneID", "geneName", "geneBiotype", "transID", "transName", "transBiotype", "proteinID", "prevExonID", "nextExonID", "prevExonStart", "prevExonEnd", "nextExonStart", "nextExonEnd", "boundSeq",  paste0("surprisal", seq(-fullLength , (fullLength -1)))), 
+    colnames<- c("chr", "transStart", "transEnd", "strand", "geneID", "geneName", "geneBiotype", "transID", "transName", "transBiotype", "proteinID", "prevExonID", "nextExonID", "prevExonStart", "prevExonEnd", "nextExonStart", "nextExonEnd", "boundSeq",  paste0("surprisal", seq(-fullLength , (fullLength-1))), paste0("dinuc", seq(-fullLength, (fullLength -1))))
+  )
+  
+  EEbounds.CDS.list <- lapply(EEbounds.CDS.list, setNames, colnames)
+  EEbounds.CDS.list <- lapply(EEbounds.CDS.list, function(x) x[(grep("N", x$boundSeq, invert = TRUE))])
+  
+  EEbounds.CDS <- lapply(EEbounds.CDS.list, function(x) getSurprisalMeanCentred(x, depth) )
+  
+  EEbounds.CDS.dt<-rbindlist(EEbounds.CDS, use.names=TRUE, fill=TRUE, idcol="Species")
+  
+  
+  
+  gg.means <- ggplot(EEbounds.CDS.dt, aes(x = Position, y = MeanSurprisal, group = factor(Species, levels = speciesVector), colour = factor(Species, levels = speciesVector))) +
+      #geom_hline(yintercept = 0, colour = 'black', alpha = 0.2, size = 1) +
+      geom_vline(xintercept = -0.5, colour = 'black', alpha = 0.2, size = 1) +
+      geom_line(size = 1.2, alpha = 0.7) + 
+      mytheme + labs(x = "Position from exon-exon junction (nt)",  y = "Centred mean surprisal (bits)") +
+      scale_x_continuous(expand=c(0.01,0), breaks = c(-depth, -depth/2, -0.5, depth/2, depth-1), 
+              labels = as.character(c( -depth, -depth/2, "Jct", depth/2, depth) )) + 
+      scale_y_continuous(expand=c(0.01,0), limits = c(lowlim, highlim)) +
+      scale_color_manual(values = speciesColours) #+ theme(legend.position = "right")
+  
+  return(gg.means)
+}
+
+
+Fig3.DNA <- plotFigure3("CDS", "DNA", EEdepth, k, 17.7, 18.4)
+Fig3.CDS <- plotFigure3("CDS", "CDS", EEdepth, k, 17.2, 17.9)
+Fig3.AA <- plotFigure3("AA", "AA", EEdepth, k, 12.1, 12.8)
+  
+
+```
+
+Arrange the files and output
+
+```{r Combine and output Figure 3 plots, fig.height = 6, fig.width = 6}
+
+Figure3 <- ggarrange(Fig3.DNA, Fig3.CDS, Fig3.AA, ncol = 1, labels = c("A", "B", "C")) 
+
+ggsave(paste0(figuresDir, "Figure3-AllSpecies_ExonExonJunctions_notCentred.pdf"), plot = Figure3, height=6, width = 6)
+Figure3
+
+```
+
+
+
+# Section 2: Model Observations, Human only
+
+## Figure 4: Spectrum of DNA k-mers is tri-modal and correlated with CG content.
+
+Make the CG Violin figures in fig 2.
+```{r setup the DNA distribution environment}
+k = 12
+dist = "DNA"
+species = "HomoSapiens"
+
+DNAdistribuion <- as_tibble(fread(paste0("/data/rnabiology/shumphrey/Project/3-Distributions/", dist, "/", dist, "dist_", species, "_K", k, ".txt"), sep = "\t"))
+colnames(DNAdistribuion ) <- c("kmer", "occurance")
+  
+kmerDinucletodes <- as_tibble(fread(paste0("/mnt/gpfs1/home/shumphrey/GenomicInformationAnalysis/Data/DinucleotideLookup/KmerDinucleotideLookupTable_k", k, ".txt"), header = TRUE))
+
+kmerDinucletodes <- kmerDinucletodes %>% 
+                        mutate(AA =  ifelse(AA >= 3, "3+", AA)) %>% 
+                        mutate(AC =  ifelse(AC >= 3, "3+", AC)) %>% 
+                        mutate(AG =  ifelse(AG >= 3, "3+", AG)) %>% 
+                        mutate(AT =  ifelse(AT >= 3, "3+", AT)) %>% 
+                        mutate(CA =  ifelse(CA >= 3, "3+", CA)) %>% 
+                        mutate(CC =  ifelse(CC >= 3, "3+", CC)) %>% 
+                        mutate(CG =  ifelse(CG >= 3, "3+", CG)) %>% 
+                        mutate(CT =  ifelse(CT >= 3, "3+", CT)) %>% 
+                        mutate(GA =  ifelse(GA >= 3, "3+", GA)) %>% 
+                        mutate(GC =  ifelse(GC >= 3, "3+", GC)) %>% 
+                        mutate(GG =  ifelse(GG >= 3, "3+", GG)) %>% 
+                        mutate(GT =  ifelse(GT >= 3, "3+", GT)) %>% 
+                        mutate(TA =  ifelse(TA >= 3, "3+", TA)) %>% 
+                        mutate(TC =  ifelse(TC >= 3, "3+", TC)) %>% 
+                        mutate(TG =  ifelse(TG >= 3, "3+", TG)) %>% 
+                        mutate(TT =  ifelse(TT >= 3, "3+", TT)) 
+
+	DNAdist_dinuc <- DNAdistribuion %>% 
+	                  full_join(kmerDinucletodes, by = "kmer")
+	
+	DNAdist_nullomers <- DNAdist_dinuc %>% 
+	                  filter(!(complete.cases(.)))
+
+	DNAdist_dinuc <- DNAdist_dinuc %>% 
+	                  filter(complete.cases(.)) %>% 
+	                  mutate(surprisal = -log2((occurance/sum(occurance))))
+
+	
+	
+```
+
+
+```{r Plot the 12-mer violins for HomoSapien DNA, fig.width = 3, fig.height = 3}
+	DNAdist_dinuc.CG <- DNAdist_dinuc %>% 
+	                  dplyr::select(kmer, surprisal, CG)
+	                
+	violinPlot <- ggplot(DNAdist_dinuc.CG , aes(x = CG, y = surprisal, fill = factor(CG)) ) +
+      						geom_violin(adjust = 2) + 
+      	          geom_boxplot(width = .1, outlier.shape = NA, alpha = 0) + 
+      						mytheme + labs(x = paste0("Di-Nucleotide Occurance in 12-mer"), y = "Surprisal (bits)") +
+      						scale_fill_manual(values = as.vector(CRUKcolours)) 
+  
+	#violinPlot
+```
+
+
+```{r plot the di-nucleotide distribution, fig.width = 3, fig.height = 3}
+
+dinucDist <- as_tibble(fread(paste0("/data/rnabiology/shumphrey/Project/3-Distributions/", dist, "/", dist, "dist_", species, "_K2.txt")))
+colnames(dinucDist) <- c("dinucleotide", "occurance")
+
+dinucDist.df <- data.frame(dinucDist$occurance, row.names = dinucDist$dinucleotide)
+dinuc.tbl <- dinucDist.df %>% t() %>% as_tibble()
+
+genomeSize <- rowSums(dinuc.tbl)
+
+dinuc.tbl <- dinuc.tbl %>% transmute(
+                        AA_TT = (AA + TT)/genomeSize,
+                        AC_GT = (AC + GT)/genomeSize,
+                        AG_CT = (AG + CT)/genomeSize,
+                        AT = AT/genomeSize,
+                        CA_TG = (CA + TG)/genomeSize,
+                        CC_GG = (CC + GG)/genomeSize,
+                        CG = CG/genomeSize,
+                        GA_TC = (GA + TC)/genomeSize,
+                        GC = GC/genomeSize,
+                        TA = TA/genomeSize
+                        )
+
+dinuc.tbl <- dinuc.tbl %>% 
+              as.data.frame() %>% 
+              t() %>%
+              as_tibble(rownames = "dinucleotide")
+
+colnames(dinuc.tbl) <- c("dinucleotide", "freq")
+  
+dinucDist.plot <- dinuc.tbl %>% 
+              mutate(dinucleotide = fct_reorder(dinucleotide, desc(freq))) %>%
+              ggplot(aes(x = dinucleotide , y = freq)) +
+                    geom_bar(stat = "identity") +
+                    mytheme +
+                    labs(x = "Dinucleotide", y = "Frequency") +   
+                    scale_y_continuous(expand=c(0.01,0), limits = c(0, NA))
+
+dinucDist.plot             
+```
+
+
+```{r plot the distribution spectra, fig.width = 6, fig.height = 3}
+
+plotDistributionSpectra <- function(dinuc_in, spectraDepth) {
+  
+  data <- DNAdist_dinuc
+  data <- data %>% 
+            filter(occurance < spectraDepth) %>% 
+            dplyr::select(occurance, dinuc_in)
+  
+  colnames(data) <- c("occurance", "dinuc")
+  
+  data.toPlot <- data %>% ddply(.(dinuc, occurance), nrow)
+  
+  spectraFigure <- ggplot(data.toPlot, aes(occurance, V1)) + 
+                    geom_bar(stat = "identity", alpha = 0.4, aes(fill = factor(dinuc))) + 
+                    geom_smooth(method = "loess", se = FALSE, span = 0.2, 
+                                aes(group = dinuc, colour = factor(dinuc))) + 
+                    mytheme + 
+                    labs(x = paste0(k, "-mer Occurance"), y = "DNA Occurance Frequency") +
+                    scale_x_continuous(expand=c(0.01,0), limits = c(0, spectraDepth)) +
+                    scale_y_continuous(expand=c(0.01,0), limits = c(0, NA)) + 
+                    scale_fill_manual(values = as.vector(CRUKcolours[1:4])) + 
+                    scale_color_manual(values = as.vector(CRUKcolours[1:4]))
+                  
+  return(spectraFigure)
+}
+
+distSpectra <- plotDistributionSpectra("CG", 400)
+
+distSpectra
+
+```
+
+### Organise and Panel Figure 4:
+
+```{r Combine and output Figure 4 plots, fig.height = 6, fig.width = 6}
+
+Figure4 <- ggarrange(distSpectra,                                                 # First row with scatter plot
+          ggarrange(dinucDist.plot, violinPlot, ncol = 2, labels = c("B", "C")), # Second row with box and dot plots
+          nrow = 2, 
+          labels = "A"                                        # Labels of the scatter plot
+          ) 
+
+ggsave(paste0(figuresDir, "Figure4-Human_CGsurprisalCorrelations.pdf"), plot = Figure4, height=6, width = 6)
+Figure4
+
+```
+
+## Figure 5: Exon intron boundaries 
+
+Need to set the axis labes to 3 sig fig
+
+```{r Human Exon Intron Boundaries, fig.width = 3, fig.hight = 4}
+
+k = 12
+fullDepth = 150
+EIdepth = 50
+species = "HomoSapiens"
+
+boundaries.DNA <- fread(paste("/data/rnabiology/shumphrey/Project/4-BoundarySurprisal/BoundEI_DistDNA/exonIntronBoundarySurprisal_", species, "_DistDNA_k", k, "_D", fullDepth, ".txt", sep = ""), header = FALSE, fill = TRUE)
+
+colnames(boundaries.DNA) <- c("chr", "strand", "geneID", "geneName", "geneBiotype", "transID", "transName", "transStart", "transEnd", "transBiotype", "proteinID", "exonID", "exonStart", "exonEnd", "exon5p_boundSeq", "exon3p_boundSeq", paste0("surprisal5p_", seq(-fullDepth, fullDepth-1)), paste0("dinuc5p_", seq(-fullDepth, fullDepth-1)), paste0("surprisal3p_", seq(-fullDepth, fullDepth-1)), paste0("dinuc3p_", seq(-fullDepth, fullDepth-1)))
+
+PCboundaries.DNA <- boundaries.DNA %>% filter(transBiotype == "protein_coding")
+
+PCbound.5p.surp <- PCboundaries.DNA %>% 
+                    select( starts_with("surprisal5p_")) %>% 
+                    filter(complete.cases(.)) %>% 
+                    filter_all(all_vars(. > 0)) %>% 
+                    mutate_if(is.character,as.numeric)
+
+PCbound.5p.dinuc <- PCboundaries.DNA %>% 
+                    select( starts_with("dinuc5p_")) %>% 
+                    filter(complete.cases(.)) 
+
+PCbound.3p.surp <- PCboundaries.DNA %>% 
+                    select( starts_with("surprisal3p_")) %>% 
+                    filter(complete.cases(.)) %>% 
+                    filter_all(all_vars(. > 0)) %>% 
+                    mutate_if(is.character,as.numeric)
+
+PCbound.3p.dinuc <- PCboundaries.DNA %>% 
+                    select( starts_with("dinuc3p_")) %>% 
+                    filter(complete.cases(.)) 
+
+
+PCbound.5p.means <- tibble(Position = seq(-fullDepth, fullDepth-1), 
+      MeanSuprisal =  unname(colMeans(PCbound.5p.surp)),
+      AA = colSums(PCbound.5p.dinuc == "AA")/length(PCbound.5p.dinuc[,1]),
+      AC = colSums(PCbound.5p.dinuc == "AC")/length(PCbound.5p.dinuc[,1]),
+      AG = colSums(PCbound.5p.dinuc == "AG")/length(PCbound.5p.dinuc[,1]),
+      AT = colSums(PCbound.5p.dinuc == "AT")/length(PCbound.5p.dinuc[,1]),
+      CA = colSums(PCbound.5p.dinuc == "CA")/length(PCbound.5p.dinuc[,1]),
+      CC = colSums(PCbound.5p.dinuc == "CC")/length(PCbound.5p.dinuc[,1]),
+      CG = colSums(PCbound.5p.dinuc == "CG")/length(PCbound.5p.dinuc[,1]),
+      CT = colSums(PCbound.5p.dinuc == "CT")/length(PCbound.5p.dinuc[,1]),
+      GA = colSums(PCbound.5p.dinuc == "GA")/length(PCbound.5p.dinuc[,1]),
+      GC = colSums(PCbound.5p.dinuc == "GC")/length(PCbound.5p.dinuc[,1]),
+      GG = colSums(PCbound.5p.dinuc == "GG")/length(PCbound.5p.dinuc[,1]),
+      GT = colSums(PCbound.5p.dinuc == "GT")/length(PCbound.5p.dinuc[,1]),
+      TA = colSums(PCbound.5p.dinuc == "TA")/length(PCbound.5p.dinuc[,1]),
+      TC = colSums(PCbound.5p.dinuc == "TC")/length(PCbound.5p.dinuc[,1]),
+      TG = colSums(PCbound.5p.dinuc == "TG")/length(PCbound.5p.dinuc[,1]),
+      TT = colSums(PCbound.5p.dinuc == "TT")/length(PCbound.5p.dinuc[,1])
+      )
+
+PCbound.3p.means <- tibble(Position = seq(-fullDepth, fullDepth-1), 
+      MeanSuprisal =  unname(colMeans(PCbound.3p.surp)),
+      AA = colSums(PCbound.3p.dinuc == "AA")/length(PCbound.3p.dinuc[,1]),
+      AC = colSums(PCbound.3p.dinuc == "AC")/length(PCbound.3p.dinuc[,1]),
+      AG = colSums(PCbound.3p.dinuc == "AG")/length(PCbound.3p.dinuc[,1]),
+      AT = colSums(PCbound.3p.dinuc == "AT")/length(PCbound.3p.dinuc[,1]),
+      CA = colSums(PCbound.3p.dinuc == "CA")/length(PCbound.3p.dinuc[,1]),
+      CC = colSums(PCbound.3p.dinuc == "CC")/length(PCbound.3p.dinuc[,1]),
+      CG = colSums(PCbound.3p.dinuc == "CG")/length(PCbound.3p.dinuc[,1]),
+      CT = colSums(PCbound.3p.dinuc == "CT")/length(PCbound.3p.dinuc[,1]),
+      GA = colSums(PCbound.3p.dinuc == "GA")/length(PCbound.3p.dinuc[,1]),
+      GC = colSums(PCbound.3p.dinuc == "GC")/length(PCbound.3p.dinuc[,1]),
+      GG = colSums(PCbound.3p.dinuc == "GG")/length(PCbound.3p.dinuc[,1]),
+      GT = colSums(PCbound.3p.dinuc == "GT")/length(PCbound.3p.dinuc[,1]),
+      TA = colSums(PCbound.3p.dinuc == "TA")/length(PCbound.3p.dinuc[,1]),
+      TC = colSums(PCbound.3p.dinuc == "TC")/length(PCbound.3p.dinuc[,1]),
+      TG = colSums(PCbound.3p.dinuc == "TG")/length(PCbound.3p.dinuc[,1]),
+      TT = colSums(PCbound.3p.dinuc == "TT")/length(PCbound.3p.dinuc[,1])
+      )
+
+PCbound.5p.means.filtered <- PCbound.5p.means %>% 
+                      filter(abs(Position) <= EIdepth)
+
+PCbound.3p.means.filtered  <- PCbound.3p.means %>% 
+                      filter(abs(Position) <= EIdepth)
+
+
+lowLimit <- function(x){floor(min(x))}
+highLimit <- function(x){ceiling(max(x))}
+
+surp_lowerlimit = min(c(lowLimit(PCbound.5p.means.filtered$MeanSuprisal),lowLimit(PCbound.3p.means.filtered$MeanSuprisal)))
+surp_upperlimit = max(c(highLimit(PCbound.5p.means.filtered$MeanSuprisal),highLimit(PCbound.3p.means.filtered$MeanSuprisal)))
+
+dinuc_lowerlimit = 0
+dinuc_upperlimit = max(c(max(PCbound.5p.means.filtered$CG),max(PCbound.3p.means.filtered$CG)))
+
+#Put dinuc data on the same scale as the surprisal
+PCbound.toPlot.5p <- PCbound.5p.means.filtered %>% 
+                    dplyr::select(Position, MeanSuprisal, CG) %>% 
+                    mutate( MeanSuprisal_zeroed = MeanSuprisal - surp_lowerlimit,
+                            CG_scaled = (CG * ((surp_upperlimit-surp_lowerlimit)/dinuc_upperlimit)))
+
+PCbound.toPlot.3p <- PCbound.3p.means.filtered %>% 
+                    dplyr::select(Position, MeanSuprisal, CG) %>% 
+                    mutate( MeanSuprisal_zeroed = MeanSuprisal - surp_lowerlimit,
+                            CG_scaled = (CG * ((surp_upperlimit-surp_lowerlimit)/dinuc_upperlimit)))
+
+
+
+gg.dna.exon5p <- ggplot(PCbound.toPlot.5p) +
+                  geom_bar(aes(x = Position, y = CG_scaled), stat = "identity", width = 0.7) +
+                  geom_line(aes(x = Position, y = MeanSuprisal_zeroed), size = 2) +
+                  geom_vline(xintercept = -0.5, colour = 'black', alpha = 0.2, size = 1 )  +
+                  mytheme + 
+                  theme(plot.margin=unit(c(.5,0,.5,.5), "cm")) + 
+                  labs( x = "",  y = "DNA entropy (bits)") +
+                  scale_x_continuous(expand=c(0.01,0), 
+              breaks = c(-EIdepth, -EIdepth/2, -15, -0.5, 4, EIdepth/2, EIdepth-1), 
+              labels = as.character(c( -EIdepth, -EIdepth/2,"", "ss", "",EIdepth/2, EIdepth) )) + 
+                  scale_y_continuous(expand=c(0.01,0), 
+                                      limits = c(0, surp_upperlimit-surp_lowerlimit),
+                                      breaks = c(1,2,3), 
+                                      labels = formatC(signif(c(surp_lowerlimit + 1.0, surp_lowerlimit + 2.0, surp_lowerlimit + 3.0),digits=3), digits=3,format="fg", flag="#"),
+                                      sec.axis = sec_axis(~ (.*dinuc_upperlimit/(surp_upperlimit-surp_lowerlimit)),
+                                      labels = NULL,
+                                      name = NULL))
+
+
+gg.dna.exon3p <- ggplot(PCbound.toPlot.3p) +
+                  geom_bar(aes(x = Position, y = CG_scaled), stat = "identity", width = 0.7) +
+                  geom_line(aes(x = Position, y = MeanSuprisal_zeroed), size = 2) +
+                  geom_vline(xintercept = -0.5, colour = 'black', alpha = 0.2, size = 1 )  +
+                  mytheme + 
+                  theme(plot.margin=unit(c(.5,0,.5,0), "cm")) + 
+                  labs( x = "",  y = "") +
+                  scale_x_continuous(expand=c(0.01,0), 
+              breaks = c(-EIdepth, -EIdepth/2, -5, -0.5, 14, EIdepth/2, EIdepth-1), 
+              labels = as.character(c( -EIdepth, -EIdepth/2,"", "ss", "",EIdepth/2, EIdepth) )) + 
+                  scale_y_continuous(expand=c(0.01,0), 
+                                      limits = c(0, surp_upperlimit-surp_lowerlimit),
+                                      breaks = c(1,2,3),
+                                      labels = NULL, 
+                                      # This needs to be manually adjusted if other data is plotted
+                                      sec.axis = sec_axis(~ (.*dinuc_upperlimit/(surp_upperlimit-surp_lowerlimit)),
+                                      name = "CG count")) 
+
+
+```
+
+
+### Boundary motifs
+
+```{r Consensus motifs: Protein Coding, fig.height=2, fig.width=3}
+
+PCseqs.5p <- PCboundaries.DNA$exon5p_boundSeq
+PCseqs.5p <- PCseqs.5p[(grep("N", PCseqs.5p, invert = TRUE))]
+PCseqs.5p <- PCseqs.5p[complete.cases(PCseqs.5p)]
+PCseqs.5p.bound <- substr(PCseqs.5p, fullDepth-14, fullDepth+5 )
+
+PCseqs.3p <- PCboundaries.DNA$exon3p_boundSeq
+PCseqs.3p <- PCseqs.3p[(grep("N", PCseqs.3p, invert = TRUE))]
+PCseqs.3p <- PCseqs.3p[complete.cases(PCseqs.3p)]
+PCseqs.3p.bound <- substr(PCseqs.3p, fullDepth-4, fullDepth+15 )
+
+
+logo.5p <- ggplot() + 
+            geom_logo( PCseqs.5p.bound ) + 
+            theme_logo() + 
+            mytheme + 
+            scale_y_continuous(position = "right", breaks = c(0, 1, 2), labels = formatC(signif(c(0, 1, 2),digits=3), digits=3,format="fg", flag="#"))) +
+            theme(plot.margin=unit(c(.5,0,.5,.5), 'cm'))
+
+logo.3p <- ggplot() + 
+            geom_logo( PCseqs.3p.bound ) + 
+            theme_logo() + 
+            mytheme + 
+            scale_y_continuous(position = "right", breaks = c(0, 1, 2), labels = formatC(signif(c(0, 1, 2),digits=3), digits=3,format="fg", flag="#")) +
+            theme(plot.margin=unit(c(.5,0,.5,0), "cm"))
+
+```
+
+```{r arrange plots, fig.height=6, fig.width=6}
+
+Figure5 <- ggarrange( gg.dna.exon5p, gg.dna.exon3p, logo.5p, logo.3p, 
+                      heights = c(1, 0.5),  ncol = 2, nrow = 2, labels = c("A", "B", "C", "D"))
+
+ggsave(filename = paste0(figuresDir, "Figure5_ExonIntronBoundaries_", species, "_WithCG_D", EIdepth, "_K", k,".pdf"), plot = Figure5 , width=6, height=6)
+Figure5 
+```
+
+
+
+
+
+
+```{r Find Nullomers, eval = FALSE}
+k = 12
+species = "HomoSapiens"
+
+DNAdistribuion <- as_tibble(fread(paste0("/data/rnabiology/shumphrey/Project/3-Distributions/DNA/DNAdist_", species, "_K", k, ".txt"), sep = "\t"))
+CDSdistribuion <- as_tibble(fread(paste0("/data/rnabiology/shumphrey/Project/3-Distributions/CDS/CDSdist_", species, "_K", k, ".txt"), sep = "\t"))
+
+colnames(DNAdistribuion ) <- c("kmer", "DNA")
+colnames(CDSdistribuion ) <- c("kmer", "CDS")
+
+
+length(DNAdistribuion$kmer) - 4^k
+
+
+nullomers <- CDSdistribuion %>% 
+      left_join(DNAdistribuion, by = "kmer") %>% 
+      filter(is.na(DNA))
+
+write.table(arrange(nullomers, desc(CDS)), file = "nullomer_occurances_K12.txt", sep = "\t", quote = FALSE, row.names = FALSE, col.names = TRUE)
+write.table(nullomers$kmer, file = "nullomers_K12.txt", sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE)
+```
+
+
+There are no nullomers for k < 11. 
+For k = 11, we observed 104 nullomers, two of these were found in coding mRNA - CGACGTACCGT (gene = TAF8) and CCGCGCGATAT (gene = ANO2). 
+For k = 12, we obseved 44,629 nullomers, where 236 are found in coding mRNA.
+
+```{sh find nullomers in transcripts, eval = FALSE}
+grep -f ~/GenomicInformationAnalysis/GenomicInformation/nullomers_K12.txt PCtranscripts_HomoSapiens.txt > ~/GenomicInformationAnalysis/GenomicInformation/nullomerGenes.txt
+```
+
+```{r find nullomers in genes, eval = FALSE}
+
+annotation <- read_table2("nullomerGenes.txt", col_names = FALSE)
+colnames(annotation) <- c("chr", "transcript_start", "transcript_end", "strand", "gene_id", "gene_name", "gene_biotype", "transcript_id", "transcript_name", "transcript_biotype", "protein_id", "cDNA_sequence", "coding_sequence", "peptide_sequence")
+
+nullomer_genes <- lapply(nullomers$kmer, function(x) annotation[grep(x, annotation$coding_sequence),])
+names(nullomer_genes) <- nullomers$kmer
+
+nullomers.out <-rbindlist(nullomer_genes, use.names=TRUE, fill=TRUE, idcol="nullomer")
+
+nullomers.out <- nullomers.out %>% 
+                  select(-contains("sequence"))
+
+write.table(nullomers.out, file = "nullomers_found_in_mRNA_K12.txt", sep = "\t", quote = FALSE, row.names = FALSE, col.names = TRUE)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Figure 6: Exon exon boundaries
+
+```{r Setup the exon-exon boundary environment, include = FALSE}
+
+k = 9
+fullDepth = 100
+EEdepth = 50
+species = "HomoSapiens"
+
+EEboundaries.DNA <- as_tibble(fread(paste0("/data/rnabiology/shumphrey/Project/4-BoundarySurprisal/BoundCDS_DistDNA/exonExonBoundarySurprisal_", species, "_CDS_DistDNA_k", k, "_D", fullDepth, ".txt"), header = FALSE))
+EEboundaries.DNA <- EEboundaries.DNA[complete.cases(EEboundaries.DNA),]
+colnames(EEboundaries.DNA) <- c("chr", "transStart", "transEnd", "strand", "geneID", "geneName", "geneBiotype", "transID", "transName", "transBiotype", "proteinID", "prevExonID", "nextExonID", "prevExonStart", "prevExonEnd", "nextExonStart", "nextExonEnd", "boundSeq", paste0("surprisal", seq(-fullDepth, (fullDepth-1))), paste0("dinuc", seq(-fullDepth, (fullDepth-1))))
+EEboundaries.DNA <-  EEboundaries.DNA[(grep("N", EEboundaries.DNA$boundSeq, invert = TRUE)),]
+
+EEboundaries.CDS <- as_tibble(fread(paste0("/data/rnabiology/shumphrey/Project/4-BoundarySurprisal/BoundCDS_DistCDS/exonExonBoundarySurprisal_", species, "_CDS_DistCDS_k", k, "_D", fullDepth, ".txt"), header = FALSE))
+EEboundaries.CDS <- EEboundaries.CDS[complete.cases(EEboundaries.CDS),]
+colnames(EEboundaries.CDS) <- c("chr", "transStart", "transEnd", "strand", "geneID", "geneName", "geneBiotype", "transID", "transName", "transBiotype", "proteinID", "prevExonID", "nextExonID", "prevExonStart", "prevExonEnd", "nextExonStart", "nextExonEnd", "boundSeq",  paste0("surprisal", seq(-fullDepth, (fullDepth-1))), paste0("dinuc", seq(-fullDepth, (fullDepth-1))))
+EEboundaries.CDS <- EEboundaries.CDS[(grep("N", EEboundaries.CDS$boundSeq, invert = TRUE)),]
+
+EEboundaries.AA <- as_tibble(fread(paste0("/data/rnabiology/shumphrey/Project/4-BoundarySurprisal/BoundAA_DistAA/exonExonBoundarySurprisal_", species, "_AA_DistAA_k", k, "_D", fullDepth, ".txt"), header = FALSE))
+EEboundaries.AA <- EEboundaries.AA[complete.cases(EEboundaries.AA),]
+colnames(EEboundaries.AA) <-c("chr", "transStart", "transEnd", "strand", "geneID", "geneName", "geneBiotype", "transID", "transName", "transBiotype", "proteinID", "prevExonID", "nextExonID", "prevExonStart", "prevExonEnd", "nextExonStart", "nextExonEnd", "boundSeq",  paste0("surprisal", seq(-(fullDepth), fullDepth-1)))
+
+
+
+bounds <- EEboundaries.DNA %>% 
+      inner_join(EEboundaries.CDS, by =  c("chr", "transStart", "transEnd", "strand", "geneID", "geneName", "geneBiotype", "transID", "transName", "transBiotype", "proteinID", "prevExonID", "nextExonID", "prevExonStart", "prevExonEnd", "nextExonStart", "nextExonEnd")) %>% 
+      inner_join(EEboundaries.AA, by =  c("chr", "transStart", "transEnd", "strand", "geneID", "geneName", "geneBiotype", "transID", "transName", "transBiotype", "proteinID", "prevExonID", "nextExonID", "prevExonStart", "prevExonEnd", "nextExonStart", "nextExonEnd")) %>% 
+      select(c("chr", "transStart", "transEnd", "strand", "geneID", "geneName", "geneBiotype", "transID", "transName", "transBiotype", "proteinID", "prevExonID", "nextExonID", "prevExonStart", "prevExonEnd", "nextExonStart", "nextExonEnd"))
+
+
+
+EEboundaries.DNA <- EEboundaries.DNA %>% 
+                      inner_join(bounds, by =  c("chr", "transStart", "transEnd", "strand", "geneID", "geneName", "geneBiotype", "transID", "transName", "transBiotype", "proteinID", "prevExonID", "nextExonID", "prevExonStart", "prevExonEnd", "nextExonStart", "nextExonEnd"))
+
+EEboundaries.CDS <- EEboundaries.CDS %>% 
+                      inner_join(bounds, by =  c("chr", "transStart", "transEnd", "strand", "geneID", "geneName", "geneBiotype", "transID", "transName", "transBiotype", "proteinID", "prevExonID", "nextExonID", "prevExonStart", "prevExonEnd", "nextExonStart", "nextExonEnd"))
+
+EEboundaries.AA <- EEboundaries.AA %>% 
+                      inner_join(bounds, by =  c("chr", "transStart", "transEnd", "strand", "geneID", "geneName", "geneBiotype", "transID", "transName", "transBiotype", "proteinID", "prevExonID", "nextExonID", "prevExonStart", "prevExonEnd", "nextExonStart", "nextExonEnd"))
+
+
+exonPhases <- as_tibble(fread(paste0("/data/rnabiology/shumphrey/Project/1-Annotation/", species, "/exonPhaseInformation_", species ,".csv"), sep = ","))
+colnames(exonPhases) <- c("geneID", "transID", "exonID", "constitutiveExon", "startPhase", "endPhase")
+ 
+
+
+```
+
+
+```{r  Plot the joint distributions, fig.height=3, fig.width=6}
+
+DNA.mat <- EEboundaries.DNA %>% 
+              dplyr::select(starts_with("surprisal")) %>%     
+              filter_all(any_vars(. > 0)) 
+
+CDS.mat <-  EEboundaries.CDS %>% 
+              dplyr::select(starts_with("surprisal")) %>%     
+              filter_all(any_vars(. > 0)) 
+
+AA.mat <- EEboundaries.AA %>% 
+              dplyr::select(starts_with("surprisal")) %>%     
+              filter_all(any_vars(. > 0)) 
+
+AllMeans <- tibble(Position = seq(-(fullDepth), (fullDepth - 1)), 
+                   DNA = unname(colMeans(DNA.mat)) - mean(unname(colMeans(DNA.mat))), 
+                   CDS= unname(colMeans(CDS.mat)) - mean(unname(colMeans(CDS.mat))), 
+                   AA = unname(colMeans(AA.mat)) - mean(unname(colMeans(AA.mat))), 
+                  )
+
+AllMeans <- AllMeans %>% 
+              filter(abs(Position) <= EEdepth)
+
+AllMeans.long <- AllMeans %>% 
+                  pivot_longer(-Position, names_to = 'dist', values_to = 'surprisal')
+
+gg.means <- ggplot(AllMeans.long, aes(x = Position, y = surprisal, color = dist)) +
+              geom_vline(xintercept = -0.5, colour = 'black', alpha = 0.2, size = 1 ) +
+              geom_line(size = 1, alpha = 0.8) +
+              scale_color_brewer(palette = "Set2") +
+              labs(x = "Position from boundary",  y = "Average surprisal mean centred") +
+              scale_x_continuous(expand=c(0.01,0), breaks = c(-EEdepth, -EEdepth/2, -0.5, EEdepth/2, EEdepth), 
+                      labels = as.character(c( -EEdepth, -EEdepth/2, "Jct", EEdepth/2, EEdepth) )) +
+              scale_y_continuous(expand=c(0.01,0), limits = c(-0.30, 0.30)) +  mytheme
+
+
+gg.means 
+  
+
+```
+
+
+```{r Plot the information gains, fig.height=3, fig.width=6}
+
+
+DNA.mat <- EEboundaries.DNA %>%  
+            mutate(ID = paste(transID, prevExonID, nextExonID, sep = "_")) %>% 
+            select(ID, starts_with("surprisal"))
+         
+CDS.mat <- EEboundaries.CDS %>%  
+            mutate(ID = paste(transID, prevExonID, nextExonID, sep = "_")) %>% 
+            select(ID, starts_with("surprisal"))
+
+AA.mat <- EEboundaries.AA %>%  
+            mutate(ID = paste(transID, prevExonID, nextExonID, sep = "_")) %>% 
+            select(ID, starts_with("surprisal")) 
+
+CDS.mat <- CDS.mat[match(CDS.mat$ID, DNA.mat$ID ),]
+AA.mat <- AA.mat[match(AA.mat$ID, DNA.mat$ID ),]
+
+table(DNA.mat$ID == CDS.mat$ID)
+table(DNA.mat$ID == AA.mat$ID)
+
+DNA_CDS.mat <- tibble(ID = DNA.mat$ID, dplyr::select(DNA.mat, starts_with("surprisal")) - dplyr::select(CDS.mat, starts_with("surprisal")))
+DNA_AA.mat <- tibble(ID = DNA.mat$ID, dplyr::select(DNA.mat, starts_with("surprisal")) - dplyr::select(AA.mat, starts_with("surprisal")))
+CDS_AA.mat <- tibble(ID = CDS.mat$ID, dplyr::select(CDS.mat, starts_with("surprisal")) - dplyr::select(AA.mat, starts_with("surprisal")))
+
+gainMeans <- tibble(Position = seq(-(fullDepth), (fullDepth - 1)), 
+                   DNA_CDS = unname(colMeans(DNA_CDS.mat[,-1])) - mean(unname(colMeans(DNA_CDS.mat[,-1]))), 
+                   DNA_AA = unname(colMeans(DNA_AA.mat[,-1])) - mean(unname(colMeans(DNA_AA.mat[,-1]))), 
+                   CDS_AA = unname(colMeans(CDS_AA.mat[,-1])) - mean(unname(colMeans(CDS_AA.mat[,-1]))), 
+                  )
+
+gainMeans <- gainMeans %>% 
+              filter(abs(Position) <=50)
+
+gainMeans.long <- gainMeans %>% 
+                  pivot_longer(-Position, names_to = 'dist', values_to = 'surprisal')
+
+gg.means <- ggplot(gainMeans.long, aes(x = Position, y = surprisal, color = dist)) +
+              geom_vline(xintercept = -0.5, colour = 'black', alpha = 0.2, size = 1 ) +
+              geom_line(size = 1, alpha = 0.8) +
+              scale_color_brewer(palette = "Set1") +
+              labs(x = "Position from boundary",  y = "Average gain mean centred") +
+              scale_x_continuous(expand=c(0.01,0), breaks = c(-EEdepth, -EEdepth/2, -0.5, EEdepth/2, EEdepth), 
+                      labels = as.character(c( -EEdepth, -EEdepth/2, "Jct", EEdepth/2, EEdepth) )) +
+              scale_y_continuous(expand=c(0.01,0), limits = c(-0.30, 0.30)) +  mytheme
+
+
+
+gg.means 
+
+```
+
+
+```{r dinucleotide plot, fig.height=3, fig.width=3}
+bound.dinucs <- EEboundaries.DNA[,grep("dinuc", colnames(EEboundaries.DNA))][, seq(fullDepth-9, fullDepth+10)]
+bound.dinuc.counts <- apply(bound.dinucs, 2, function(bound.dinucs) data.frame(table(bound.dinucs)))
+bound.dinuc.counts <- imap(bound.dinuc.counts, ~ setNames(.x, c("bound.dinucs", .y)))
+
+red.dinuc.counts <- Reduce(function(x, y) merge(x = x, y = y, by = "bound.dinucs", all = TRUE), bound.dinuc.counts)
+#rownames(red.dinuc.counts) <- red.dinuc.counts$bound.dinucs  
+red.dinuc.counts[,-1] <- red.dinuc.counts[,-1]/length(EEboundaries.DNA$chr)
+colnames(red.dinuc.counts) <- c("bound.dinucs", seq(-10, 9))
+
+
+
+dinuc.melt <- as_tibble(red.dinuc.counts) %>% 
+                pivot_longer(-bound.dinucs, names_to = "Position",  values_to = "freq")
+
+
+n <- 16
+qual_col_pals = brewer.pal.info[brewer.pal.info$category == 'qual',]
+col_vector = unlist(mapply(brewer.pal, qual_col_pals$maxcolors, rownames(qual_col_pals)))
+
+plot_dinuc.freqs <- ggplot() + 
+                geom_bar(aes(x = as.numeric(Position), y = freq, fill = bound.dinucs), data = dinuc.melt, stat="identity") +
+                scale_fill_manual(values=c(col_vector)) + scale_y_continuous(expand=c(0.01,0)) + mytheme + 
+                theme(legend.position = "none")
+
+plot_dinuc.freqs
+
+ggsave(file = "Dinucleotide_plot.pdf", plot = plot_dinuc.freqs, height=3, width=3)
+
+```
+
+```{r dinucleotide plot, fig.height=2, fig.width=3}
+PCseqs <- EEboundaries.DNA %>% 
+            select(boundSeq) %>% 
+            filter(!(str_detect(boundSeq, "N")))
+
+PCseqs <- str_sub(PCseqs$boundSeq,  fullDepth-4, fullDepth+5)
+
+logo <- ggplot() + 
+            geom_logo( PCseqs  ) + 
+            theme_logo() + 
+            mytheme 
+
+logo
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r Plot the exon-exon boundary split via phase, fig.height = 4, fig.width = 3}
+
+exonPhases.5p <- exonPhases[,c("geneID", "transID", "exonID", "endPhase")]
+colnames(exonPhases.5p) <-  c("geneID", "transID", "prevExonID", "endPhase") 
+
+exonPhases.3p <- exonPhases[,c("geneID", "transID", "exonID", "startPhase")]
+colnames(exonPhases.3p) <-  c("geneID", "transID", "nextExonID", "startPhase") 
+
+EEboundaries.DNA.5p <- merge(EEboundaries.DNA, exonPhases.5p, by = c("geneID", "transID", "prevExonID"))
+EEboundaries.DNA.5p.3p <- merge(EEboundaries.DNA.5p, exonPhases.3p, by = c("geneID", "transID", "nextExonID"))
+EEboundaries.DNA.5p.3p$boundPhase <- paste(EEboundaries.DNA.5p.3p$endPhase, EEboundaries.DNA.5p.3p$startPhase, sep = "-")
+
+EEboundaries.CDS.5p <- merge(EEboundaries.CDS, exonPhases.5p, by = c("geneID", "transID", "prevExonID"))
+EEboundaries.CDS.5p.3p <- merge(EEboundaries.CDS.5p, exonPhases.3p, by = c("geneID", "transID", "nextExonID"))
+EEboundaries.CDS.5p.3p$boundPhase <- paste(EEboundaries.CDS.5p.3p$endPhase, EEboundaries.CDS.5p.3p$startPhase, sep = "-")
+
+EEboundaries.AA.5p <- merge(EEboundaries.AA, exonPhases.5p, by = c("geneID", "transID", "prevExonID"))
+EEboundaries.AA.5p.3p <- merge(EEboundaries.AA.5p, exonPhases.3p, by = c("geneID", "transID", "nextExonID"))
+EEboundaries.AA.5p.3p$boundPhase <- paste(EEboundaries.AA.5p.3p$endPhase, EEboundaries.AA.5p.3p$startPhase, sep = "-")
+
+
+print("Number of each boundary type:")
+print( table(EEboundaries.DNA.5p.3p$boundPhase) )
+print( table(EEboundaries.CDS.5p.3p$boundPhase) )
+print( table(EEboundaries.AA.5p.3p$boundPhase) )
+
+
+plotExonExonBoundaryEntropy <- function(bound.DNA, bound.CDS, bound.AA, depth){
+
+ 
+DNA.mat <- bound.DNA %>%  
+            mutate(ID = paste(transID, prevExonID, nextExonID, sep = "_")) %>% 
+            select(ID, starts_with("surprisal"))
+         
+CDS.mat <- bound.CDS %>%  
+            mutate(ID = paste(transID, prevExonID, nextExonID, sep = "_")) %>% 
+            select(ID, starts_with("surprisal"))
+
+AA.mat <- bound.AA %>%  
+            mutate(ID = paste(transID, prevExonID, nextExonID, sep = "_")) %>% 
+            select(ID, starts_with("surprisal")) 
+
+CDS.mat <- CDS.mat[match(CDS.mat$ID, DNA.mat$ID ),]
+AA.mat <- AA.mat[match(AA.mat$ID, DNA.mat$ID ),]
+
+table(DNA.mat$ID == CDS.mat$ID)
+table(DNA.mat$ID == AA.mat$ID)
+
+DNA_CDS.mat <- tibble(ID = DNA.mat$ID, dplyr::select(DNA.mat, starts_with("surprisal")) - dplyr::select(CDS.mat, starts_with("surprisal")))
+DNA_AA.mat <- tibble(ID = DNA.mat$ID, dplyr::select(DNA.mat, starts_with("surprisal")) - dplyr::select(AA.mat, starts_with("surprisal")))
+CDS_AA.mat <- tibble(ID = CDS.mat$ID, dplyr::select(CDS.mat, starts_with("surprisal")) - dplyr::select(AA.mat, starts_with("surprisal")))
+
+gainMeans <- tibble(Position = seq(-(fullDepth), (fullDepth - 1)), 
+                   DNA_CDS = unname(colMeans(DNA_CDS.mat[,-1])) - mean(unname(colMeans(DNA_CDS.mat[,-1]))), 
+                   DNA_AA = unname(colMeans(DNA_AA.mat[,-1])) - mean(unname(colMeans(DNA_AA.mat[,-1]))), 
+                   CDS_AA = unname(colMeans(CDS_AA.mat[,-1])) - mean(unname(colMeans(CDS_AA.mat[,-1]))), 
+                  )
+
+gainMeans <- gainMeans %>% 
+              filter(abs(Position) <= depth)
+
+
+col_vector <- brewer.pal(6, "Set2")
+
+gg.means <- ggplot(gainMeans) +
+              geom_vline(xintercept = -0.5, colour = 'black', alpha = 0.2, size = 1 ) +
+              geom_line(aes(x = Position, y = DNA_CDS), color = col_vector[1], size = 1, alpha = 0.8) + 
+              geom_line(aes(x = Position, y = DNA_AA), color = col_vector[2], size = 1, alpha = 0.8) +
+              geom_line(aes(x = Position, y = CDS_AA), color = col_vector[3], size = 1, alpha = 0.8) +
+              mytheme + labs(x = "Position from boundary",  y = "Average surprisal mean centred") +
+              scale_x_continuous(expand=c(0.01,0), breaks = c(-EEdepth, -EEdepth/2, -0.5, EEdepth/2, EEdepth), 
+                      labels = as.character(c( -EEdepth, -EEdepth/2, "Jct", EEdepth/2, EEdepth) )) + 
+              scale_y_continuous(expand=c(0.01,0), limits = c(-0.35, 0.30)) 
+
+
+  return(gg.means)
+}
+
+EEbounds.phase0.plot <- plotExonExonBoundaryEntropy(
+                          filter(EEboundaries.DNA.5p.3p, boundPhase == "0-0"),
+                          filter(EEboundaries.CDS.5p.3p, boundPhase == "0-0"),
+                          filter(EEboundaries.AA.5p.3p, boundPhase == "0-0"), 50) 
+
+EEbounds.phase1.plot <- plotExonExonBoundaryEntropy(
+                          filter(EEboundaries.DNA.5p.3p, boundPhase == "1-1"), 
+                          filter(EEboundaries.CDS.5p.3p, boundPhase == "1-1"), 
+                          filter(EEboundaries.AA.5p.3p, boundPhase == "1-1"), 50) 
+
+EEbounds.phase2.plot <- plotExonExonBoundaryEntropy(
+                          filter(EEboundaries.DNA.5p.3p, boundPhase == "2-2"), 
+                          filter(EEboundaries.CDS.5p.3p, boundPhase == "2-2"), 
+                          filter(EEboundaries.AA.5p.3p, boundPhase == "2-2"), 50) 
+
+ 
+EEbounds.split <- ggarrange(EEbounds.phase0.plot, EEbounds.phase1.plot, EEbounds.phase2.plot, ncol = 1, nrow = 3, labels = c("A", "B", "C"))
+  EEbounds.split 
+
+
+
+```
+
+
+```{r motif split by phase, fig.width=6, fig.height = 2}
+
+EEboundaries.00 <- filter(EEboundaries.DNA.5p.3p, boundPhase == "0-0") %>% select(boundSeq) %>% filter(!(str_detect(boundSeq, "N")))
+EEboundaries.11 <- filter(EEboundaries.DNA.5p.3p, boundPhase == "1-1") %>% select(boundSeq) %>% filter(!(str_detect(boundSeq, "N")))
+EEboundaries.22 <- filter(EEboundaries.DNA.5p.3p, boundPhase == "2-2") %>% select(boundSeq) %>% filter(!(str_detect(boundSeq, "N")))
+
+seq.00 <- str_sub(EEboundaries.00$boundSeq,  fullDepth-9, fullDepth+10)
+seq.11 <- str_sub(EEboundaries.11$boundSeq,  fullDepth-9, fullDepth+10)
+seq.22 <- str_sub(EEboundaries.22$boundSeq,  fullDepth-9, fullDepth+10)
+
+logo.00 <- ggplot() + geom_logo( seq.00 ) + theme_logo() +  mytheme + scale_y_continuous(limits = c(0,2))
+logo.11 <- ggplot() + geom_logo( seq.11 ) + theme_logo() +  mytheme + scale_y_continuous(limits = c(0,2))
+logo.22 <- ggplot() + geom_logo( seq.22 ) + theme_logo() +  mytheme + scale_y_continuous(limits = c(0,2))
+
+logo.00 
+```
+
+```{r arrange motifs, fig.width=6, fig.height=6}
+phase.logos <- ggarrange(logo.00, logo.11, logo.22, ncol = 1, nrow = 3, labels = c("A", "B", "C"))
+
+phase.logos 
+```
+
+## Figure S0?: All species dinucleotides 
+Need to include CDS and amino acid
+
+```{r DNA dinucleotide occurance Figures, fig.height = 5, fig.width = 10}
+dinuc.list <- rbind(lapply(speciesVector, function(x) read.table(paste0(params$dataDir, "/3-Distributions/DNA/DNAdist_", x, "_K2.txt"), col.names = c("dinuc", x))))
+dinuc.tbl <- Reduce(function(x, y) merge(x, y, by = "dinuc", all = TRUE), dinuc.list)
+
+rownames(dinuc.tbl) <- dinuc.tbl$dinuc
+dinuc.tbl$dinuc <- NULL
+dinuc.tbl <- dinuc.tbl %>% t() %>% as_tibble(rownames = "Species")
+
+dinuc.tbl <- dinuc.tbl %>% transmute(
+                        Species = Species,
+                        AA_TT = AA + TT,
+                        AC_GT = AC + GT,
+                        AG_CT = AG + CT,
+                        AT = AT,
+                        CA_TG = CA + TG,
+                        CC_GG = CC + GG,
+                        CG = CG,
+                        GA_TC = GA + TC,
+                        GC = GC,
+                        TA = TA
+                        )
+
+genomeSizes <- rowSums(dinuc.tbl[,2:length(colnames(dinuc.tbl))]) 
+names(genomeSizes) <- dinuc.tbl$Species
+  
+dinuc.freq <- dinuc.tbl %>% 
+                rowwise() %>% 
+                mutate(
+                        AA_TT = AA_TT/genomeSizes[Species],
+                        AC_GT = AC_GT/genomeSizes[Species],
+                        AG_CT = AG_CT/genomeSizes[Species],
+                        AT = AT/genomeSizes[Species],
+                        CA_TG = CA_TG/genomeSizes[Species],
+                        CC_GG = CC_GG/genomeSizes[Species],
+                        CG = CG/genomeSizes[Species],
+                        GA_TC = GA_TC/genomeSizes[Species],
+                        GC = GC/genomeSizes[Species],
+                        TA = TA/genomeSizes[Species]
+                        )
+
+
+dinuc.toPlot <- dinuc.freq %>% 
+                  gather(key = "Dinucleotide", value = "Frequency", -Species)
+
+dinuc.toPlot$Species <- factor(dinuc.toPlot$Species, levels = c("HomoSapiens", "MusMusculus", "DanioRerio", "Drosophila", "Pombe"))
+
+groupedDinucPlot <- ggplot(dinuc.toPlot, aes(x = Dinucleotide, y = Frequency, group = Species, fill = Species)) +
+                    geom_bar(stat = "identity", position = "dodge") +
+                    scale_fill_manual(values = speciesColours) + 
+                    mytheme + theme(legend.position='right') 
+
+
+ggsave(filename = paste0(figuresDir, "DNAdinuclotidePlot.pdf"), plot = groupedDinucPlot, height = 4, width = 8)
+
+print(genomeSizes)
+
+```
