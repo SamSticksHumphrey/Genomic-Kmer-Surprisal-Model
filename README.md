@@ -10,8 +10,7 @@ This is a set of scripts used to generate the data used in the paper: *A model o
 
 ## Notes
 * reverse strand exons/transcripts have been reversed.
-* At the time of publication, the current version of ensembl was version 97.
-* 
+* At the time this work was done, the current version of ensembl was version 97.
 
 ## Annotations
 All data for use in these scripts can be downloaded from the Ensembl ftp server (ftp://ftp.ensembl.org/pub/). I downloaed DNA, cDNA, ncRNA, CDS, PEP and the gtf files for a species, example example for *H. sapiens*:

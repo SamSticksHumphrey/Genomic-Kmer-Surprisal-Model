@@ -3,6 +3,8 @@
 //
 // Sam Humphrey  April 2020
 //
+// Open, Read and CloseFASTA codes were apapted from:::   
+// http://www.cse.msu.edu/~yannisun/cse891/hmm-EM/fasta.c
 //
 // Functions for opening, reading and returning the reference sequences 
 // --------------------------------------------------------------------------------------------------------------------------------------------------------------------
