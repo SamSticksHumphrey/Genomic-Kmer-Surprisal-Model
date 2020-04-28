@@ -6,7 +6,6 @@
 #
 # Read in the .gtf files and associated .fa sequences downloaded from ensembl (ftp://ftp.ensembl.org/pub/).
 # Annotate the transcripts, exons and coding sequences for use in this script
-# 
 #
 # ---------------------------------------------------------------------------
 

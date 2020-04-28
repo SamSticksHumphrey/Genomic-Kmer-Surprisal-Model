@@ -2,41 +2,27 @@
 // fasta_fileread.cpp
 // Sam Humphrey  April 2020
 //
-// Open, Read and CloseFASTA codes were apapted from:::   
-// http://www.cse.msu.edu/~yannisun/cse891/hmm-EM/fasta.c
-//
 // Functions for opening, reading and returning the reference sequences 
 // --------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 #include "FastaFileread.h"
 
-// revcomp: Changes A <-> T  & C <-> G for the reverse  
-std::string revcomp (const std::string kmer) {
+// revcomp: Changes A <-> T  & C <-> G for the reverse compliment  
+std::string revcomp(const std::string kmer) {
         std::string revstring;
-        for (int i = kmer.size() -1; i >= 0; i--) {
-                char c = kmer[i];
+        for (std::string::iterator it = kmer.end(); it != kmer.start(); --it) {
+                char c = *it;
                 char revchar;
                 switch (c) {
-                        case 'g':
-                        revchar = 'c'; break;
 
                         case 'G':
                         revchar = 'C'; break;
 
-                        case 'a':
-                        revchar = 't'; break;
-
                         case 'A':
                         revchar = 'T'; break;
 
-                        case 't':
-                        revchar = 'a'; break;
-
                         case 'T':
                         revchar = 'A'; break;
-
-                        case 'c':
-                        revchar = 'g'; break;
 
                         case 'C':
                         revchar = 'G'; break;
@@ -50,12 +36,13 @@ std::string revcomp (const std::string kmer) {
 }
 
 // Remove whitespace ---------------------------------------------------------------------------------------
-std::string remove_whitespace (std::string s) {
+std::string remove_whitespace(std::string kmer) {
 
         std::string r = "";
-        for (unsigned int i = 0; i < s.length(); i++) {
-                char c = s[i];
-                if (c != '\t' && c != '\n' && c != ' ' && c != '\0') {
+
+        for (std::string::iterator it = kmer.start(); it != kmer.end(); --it) {
+                char c = *it;
+                if (c != '\t' && c != '\n' && c != ' ' && c != '\0'){
                         r += c;
                 }
         }
@@ -63,51 +50,7 @@ return(r);
 }
 
 
-// Open fasta file ---------------------------------------------------------------------------------------
-FASTAFILE* OpenFASTA(char *seqfile){
-        FASTAFILE *ffp;
 
-        ffp = (FASTAFILE *) malloc(sizeof(FASTAFILE));
-        ffp->fp = fopen(seqfile, "r");              /* Assume seqfile exists & readable!   */
-
-        if (ffp->fp == NULL) { 
-                free(ffp);
-                std::cout << "Error 1: Couldn't open fasta file : " << seqfile << std::endl;
-                exit(3);
-        }
-
-        if ((fgets(ffp->buffer, FASTA_MAXLINE, ffp->fp)) == NULL){
-                free(ffp);
-                std::cout << "Error 2: Couldn't open fasta file : " << seqfile << std::endl;
-                exit(3);
-        }
-
-        return ffp;
-} // end OpenFASTA
-
-
-
-
-// Read fasta function ----------------------------------------------------
-int ReadFASTA(FASTAFILE *ffp, char **ret_seq, char **ret_name, int *ret_L){
-        char *s;
-        char *name;
-        char *seq;
-        int   n;
-        int   nalloc;
-
-        /* Peek at the lookahead buffer; see if it appears to be a valid FASTA descline. */
-        if (ffp->buffer[0] != '>') return 0;
-
-        /* Parse out the name: the first non-whitespace token after the >*/
-        s  = strtok(ffp->buffer+1, " \t\n");
-
-        name = (char *) malloc(sizeof(char) * (strlen(s)+1));
-        strcpy(name, s);
-
-        seq = (char *) malloc(sizeof(char) * 128);     /* allocate seq in blocks of 128 residues */
-        nalloc = 128;
-        n = 0;
 
         while (fgets(ffp->buffer, FASTA_MAXLINE, ffp->fp)){
                 if (ffp->buffer[0] == '>') break; /* a-ha, we've reached the next descline */
@@ -140,20 +83,46 @@ void  CloseFASTA(FASTAFILE *ffp){
 
 
 // Read the reference file  ---------------------------------------------------------------------------------------
-void fileread(const std::string fname, std::vector<std::string>* _seq, Chr_Map* _chr_map, std::vector<int>* _L){
-
-        FASTAFILE* ffp;
+void fileread(const std::string _fastq_filename, std::vector<std::string>* _seq, Chr_Map* _chr_map, std::vector<int>* _L){
+        
         char* seq;
         char* chr_name;
         int L;
         int counter(0);
+        std::string line, id;
 
-        std::string fullname = fname;
+        std::cout << "Debug 1: " <<  _fastq_filename << std::endl;
+        std::ifstream fastaFile.open(_fastq_filename.c_str());
+        if (!input.good()) { std::cout << "Error opening: " << _fastq_filename << std::endl; exit(0);}       
 
-        // open and read in the fasta file
-        ffp = OpenFASTA((char*) fullname.c_str());
+        while(std::getline(fastaFile, line)){
 
-        while(ReadFASTA(ffp, &seq, &chr_name, &L)){
+        if(line.empty()){continue};
+
+        if (line[0] == '>') {
+            // output previous line before overwriting id
+            // but ONLY if id actually contains something
+            if(!id.empty())
+                std::cout << id << " : " << DNA_sequence << std::endl;
+
+            id = line.substr(1);
+            DNA_sequence.clear();
+        }
+        else {//  if (line[0] != '>'){ // not needed because implicit
+            DNA_sequence += line;
+        }
+    }
+
+    // output final entry
+    // but ONLY if id actually contains something
+    if(!id.empty())
+        std::cout << id << " : " << DNA_sequence << std::endl;
+
+}
+
+
+
+
 
                 _chr_map->insert(std::pair<std::string, int>(std::string(chr_name), counter));
                 counter++;
