@@ -16,6 +16,12 @@
 // REDUCE_ReMapAAmers, remaps just the sequences, now independent of genomic location, to assure that the same sequence at the same location isn't repeated, key = k-mer seq, values isn't important.
 // Collate on the k-mer sequences
 // REDUCE_output, output the k-mer sequence against the number of values.
+
+
+//Reads in the protein coding transcript file and the exon file, (output of *extractTranscriptAnnotationsFromGTF.R*). For each coding sequence, a vector of the same length, with genomic locations for each nucleotide is produced, which accomodates for splice regions. All k-mers from all transcripts are then extracted, as well as the starting position and end positon (using the genomic locations vector). These two postions, plus strand and chromosome number are used to create an exact location value for each k-mer mapped into the MapReduce object. The data are then collated and reduced by identifying the number of unique k-mer locations. This avoids k-mers from genes with multiple transcripts getting counted multiple times.
+
+
+
 // --------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 #include "CodingSequenceDistribution.h"
