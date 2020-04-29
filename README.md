@@ -36,32 +36,32 @@ All references to the DNA sequnece uses this edited file, not the origially down
 
 Arguments:
 
-	* A string of the species label
-	* *.gtf* file
-	* DNA *.fa* file
-	* cDNA *.fa* file
-	* CDS *.fa* file
-	* ncRNA *.fa* file
-	* AA *.fa* file
+* A string of the species label
+* *.gtf* file
+* DNA *.fa* file
+* cDNA *.fa* file
+* CDS *.fa* file
+* ncRNA *.fa* file
+* AA *.fa* file
 
 During the code - the function **reverseStrandCoords** swaps the coordinates for the reverse strand genes `rev_strand_coord = chromosome_length - for_strand_coord `. 
 
 Outputs:
 
-	* *AllTranscript_species.txt* - Information about all transcripts, plus the full cDNA, coding mRNA and AA sequences for each transcript
-	* *PCTranscript_species.txt* - same, except protein coding sequences only.
+* *AllTranscript_species.txt* - Information about all transcripts, plus the full cDNA, coding mRNA and AA sequences for each transcript
+* *PCTranscript_species.txt* - same, except protein coding sequences only.
 
-	* *AllExons_species.txt* - Just the transcript id, chromosome, start, end, exon rank and id for each exon.
-	* *PCannotations_species.txt* - Just the transcript id, chromosome, start, end, exon rank and exon id for each coding sequence (translation starts/ends are different between this and the exons file).
+* *AllExons_species.txt* - Just the transcript id, chromosome, start, end, exon rank and id for each exon.
+* *PCannotations_species.txt* - Just the transcript id, chromosome, start, end, exon rank and exon id for each coding sequence (translation starts/ends are different between this and the exons file).
 
 
 ### AnnotateUnsplicedTranscripts.cpp
 
 Arguments: 
 
-	* Output filename
-	* AllTranscript *.txt* file
-	* DNA *.fa* file
+* Output filename
+* AllTranscript *.txt* file
+* DNA *.fa* file
 
 Output: The annotation of the transcript plus the full sequence from transcription start to transcription end.
 
@@ -74,13 +74,13 @@ All distribution codes are produced in C++ using MapReduce MPI (https://mapreduc
 
 Arguments: 
 
-	* Output filename
-	* DNA *.fa* file
-	* k 
+* Output filename
+* DNA *.fa* file
+* k 
 
 Output: 
 
-	* all k-mers and the number of occurances in the DNA
+* all k-mers and the number of occurances in the DNA
 
 Note: This code reads in each chromosome onto two different cores, one is then reverse complimented, hence it requires 2 x the number of chromosomes for the organism.
 
@@ -89,51 +89,51 @@ Note: This code reads in each chromosome onto two different cores, one is then r
 
 Arguments: 
 
-	* Output filename
-	* k
-	* boundary depth
-	* PCTranscript *.txt* file
-	* PCTranscript *.txt* file length
-	* PCannotations *.txt* file
+* Output filename
+* k
+* boundary depth
+* PCTranscript *.txt* file
+* PCTranscript *.txt* file length
+* PCannotations *.txt* file
 
 Output files: 
 
-	* All k-mers and the number of occurances in the coding sequences
-	* All exon-exon boudary sequences (+/- depth) for coding sequences
+* All k-mers and the number of occurances in the coding sequences
+* All exon-exon boudary sequences (+/- depth) for coding sequences
 
 
 ### AminoAcidDistribution_Main.cpp
 
 Arguments: 
 
-	* Output filename
-	* k
-	* boundary depth
-	* PCTranscript *.txt* file
-	* PCTranscript *.txt* file length
-	* PCannotations *.txt* file
+* Output filename
+* k
+* boundary depth
+* PCTranscript *.txt* file
+* PCTranscript *.txt* file length
+* PCannotations *.txt* file
 
 Output files: 
 
-	* All k-mers and the number of occurances in the AA sequences
-	* All exon-exon boudary sequences (+/- depth) for AA sequences
+* All k-mers and the number of occurances in the AA sequences
+* All exon-exon boudary sequences (+/- depth) for AA sequences
 
 
 ### UnsplicedDistribution_Main.cpp
 
 Arguments: 
 
-	* Output filename
-	* k
-	* boundary depth
-	* UnsplicedTranscripts *.txt* file
-	* UnsplicedTranscripts *.txt* file length
-	* AllExons *.txt* file
+* Output filename
+* k
+* boundary depth
+* UnsplicedTranscripts *.txt* file
+* UnsplicedTranscripts *.txt* file length
+* AllExons *.txt* file
 
 Outputs files: 
 
-	* All exon-intron boudary sequences (+/- depth) for all boundaries
-	* (optional as very large) All k-mers and the number of occurances in the pre-mRNA sequences
+* All exon-intron boudary sequences (+/- depth) for all boundaries
+* (optional as very large) All k-mers and the number of occurances in the pre-mRNA sequences
 
 
 ## Calculate Surprisals
@@ -144,43 +144,43 @@ These C++ codes ouput the surprisal of the k-mer for the sequence string defined
 
 Arguments: 
 
-	* Output filename
-	* k
-	* boundary depth
-	* Exon-Intron boundaries file (from *UnsplicedDistribution_Main.cpp*)
-	* Distribution file (can be DNA or Unspliced)
+* Output filename
+* k
+* boundary depth
+* Exon-Intron boundaries file (from *UnsplicedDistribution_Main.cpp*)
+* Distribution file (can be DNA or Unspliced)
 
 Outputs file: 
 
-	* Exon-intron boundary surprisal file
+* Exon-intron boundary surprisal file
 
 
 ### BoundaryCalculateSurprisal_Nucleotides.cpp
 
 Arguments: 
 
-	* Output filename
-	* k
-	* boundary depth
-	* Exon-exon boundaries file (from *CodingSequenceDistribution_Main.cpp*)
-	* Distribution file (can be DNA, Unspliced or coding sequences)
+* Output filename
+* k
+* boundary depth
+* Exon-exon boundaries file (from *CodingSequenceDistribution_Main.cpp*)
+* Distribution file (can be DNA, Unspliced or coding sequences)
 
 Outputs file: 
 
-	* Exon-exon boundary surprisal file for the distribution
+* Exon-exon boundary surprisal file for the distribution
 
 
 ### BoundaryCalculateSurprisal_AminoAcids.cpp
 
-	* Output filename
-	* k
-	* boundary depth
-	* Amino acid exon-exon boundaries file
-	* Amino acid distribution file
+* Output filename
+* k
+* boundary depth
+* Amino acid exon-exon boundaries file
+* Amino acid distribution file
 
 Outputs file: 
 
-	* Amino acid exon-exon boundary surprisal file
+* Amino acid exon-exon boundary surprisal file
 
 
 ## Figure Generation
@@ -189,55 +189,55 @@ Outputs file:
 
 Arguments: 
 
-	* k
+* k
 
 Outputs file: 
 
-	* Lookup table for number of dinucleotides that occur within each k-mer
+* Lookup table for number of dinucleotides that occur within each k-mer
 
 
 ### redundancyScript.R
 
 Arguments: 
 
-	* Species label
-	* Distribution type
-	* Distribution file
-	* k_start
-	* k_end
+* Species label
+* Distribution type
+* Distribution file
+* k_start
+* k_end
 
 Outputs file: 
 
-	* Redundancy for the distribution for all k between k_start and k_end
+* Redundancy for the distribution for all k between k_start and k_end
 
 ### redundancyScript_AA.R
 
 Arguments: 
 
-	* Species label
-	* Distribution file
-	* k_start
-	* k_end
+* Species label
+* Distribution file
+* k_start
+* k_end
 
 Outputs file: 
 
-	* Redundancy for AA sequences all k between k_start and k_end
+* Redundancy for AA sequences all k between k_start and k_end
 
 
 ### PaperFigures.Rmd
 
 Arguments: 
 
-	* Redundancy files for DNA, CDS and AA
-	* Exon-intron surprisal files (from *BoundaryCalculateSurprisal_ExonIntron.cpp*)
-	* Exon-exon surprisal files (from *BoundaryCalculateSurprisal_Nucleotides.cpp* and *BoundaryCalculateSurprisal_AminoAcids.cpp*)
-	* DNA distributions for *H. sapiens* (k = 2 and 12)
-	* Dinucleotide lookup table (k = 12)
-	* 
+* Redundancy files for DNA, CDS and AA
+* Exon-intron surprisal files (from *BoundaryCalculateSurprisal_ExonIntron.cpp*)
+* Exon-exon surprisal files (from *BoundaryCalculateSurprisal_Nucleotides.cpp* and *BoundaryCalculateSurprisal_AminoAcids.cpp*)
+* DNA distributions for *H. sapiens* (k = 2 and 12)
+* Dinucleotide lookup table (k = 12)
+
 
 Outputs file: 
 
-	* Redundancy for AA sequences all k between k_start and k_end
+* Redundancy for AA sequences all k between k_start and k_end
 
 
 
